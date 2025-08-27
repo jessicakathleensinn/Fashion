@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jessie's Fashion Sketch (MVP)</title>
+<style>
+  :root {
+    --bg: #0e0e10;
+    --panel: #18181b;
+    --ink: #f2f2f2;
+    --muted: #a7a7ad;
+    --accent: #b2ffcc;
+    --accent2: #ffd1f3;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; background: var(--bg); color: var(--ink); font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+  header { padding: 12px 16px; border-bottom: 1px solid #2a2a2e; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  header h1 { font-size: 16px; font-weight: 600; margin: 0; letter-spacing: 0.3px; }
+  header .tag { font-size: 12px; color: var(--muted); }
+  #wrap { display: grid; grid-template-columns: 1fr; grid-template-rows: auto 1fr auto; height: calc(100% - 0px); }
+  #stageWrap { display: grid; grid-template-columns: 1fr; grid-template-rows: 1fr auto; gap: 10px; padding: 12px; }
+  #stage { background: #111; border: 1px solid #2a2a2e; border-radius: 10px; display: grid; place-items: center; position: relative; overflow: hidden; }
+  canvas { max-width: 100%; height: auto; touch-action: none; }
+  #controls { background: var(--panel); border-top: 1px solid #2a2a2e; padding: 10px 12px; display: grid; gap: 8px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .row > * { flex: 1 1 auto; }
+  label.btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 10px 12px; background: #232327; color: var(--ink); border: 1px solid #2d2d32; border-radius: 10px;
+    cursor: pointer; font-size: 14px; user-select: none;
+  }
+  button.btn {
+    padding: 10px 12px; background: #232327; color: var(--ink); border: 1px solid #2d2d32; border-radius: 10px;
+    cursor: pointer; font-size: 14px;
+  }
+  button.btn.primary { border-color: #2f6; box-shadow: inset 0 0 0 1px rgba(0,255,128,0.15); }
+  button.btn.warn { border-color: #f66; }
+  input[type="file"] { display: none; }
+  .control { background: #141418; border: 1px solid #2a2a2e; border-radius: 10px; padding: 8px 10px; }
+  .control h3 { margin: 0 0 6px 0; font-size: 13px; color: var(--muted); font-weight: 600; letter-spacing: 0.2px;}
+  .field { display: grid; grid-template-columns: 90px 1fr 60px; align-items: center; gap: 8px; font-size: 12px; }
+  .field input[type="range"] { width: 100%; }
+  .pill { padding: 6px 10px; border: 1px dashed #3a3a40; border-radius: 99px; font-size: 12px; color: var(--muted); }
+  .hint { font-size: 12px; color: var(--muted); }
+  .kbd { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; padding: 2px 6px; border: 1px solid #303038; border-radius: 6px; color: var(--accent); }
+  #toast { position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%); background: #141418; border: 1px solid #2a2a2e; color: var(--ink); padding: 10px 14px; border-radius: 10px; opacity: 0; pointer-events: none; transition: opacity .25s ease; }
+  #toast.show { opacity: 1; }
+  @media (min-width: 920px) {
+    #wrap { grid-template-columns: 1fr 360px; grid-template-rows: 1fr; }
+    #stageWrap { grid-template-rows: 1fr; }
+    #controls { border-left: 1px solid #2a2a2e; border-top: none; overflow-y: auto; }
+  }
+</style>
+</head>
+<body>
+  <div id="wrap">
+    <div id="stageWrap">
+      <div id="stage">
+        <canvas id="c"></canvas>
+      </div>
+    </div>
+    <aside id="controls">
+      <div class="row">
+        <label class="btn"><input id="fileBase" type="file" accept="image/*">Change base</label>
+        <label class="btn"><input id="fileFabric" type="file" accept="image/*">Add fabric</label>
+        <button id="btnExport" class="btn primary">Export PNG</button>
+        <button id="btnClear" class="btn warn">Clear layers</button>
+      </div>
+      <div class="control">
+        <h3>Selected Layer</h3>
+        <div class="field">
+          <span>Opacity</span><input id="opacity" type="range" min="0" max="1" step="0.01" value="1"><span id="opacityVal">1.00</span>
+        </div>
+        <div class="field">
+          <span>Scale</span><input id="scale" type="range" min="10" max="300" step="1" value="100"><span id="scaleVal">100%</span>
+        </div>
+        <div class="field">
+          <span>Rotate</span><input id="rotate" type="range" min="-180" max="180" step="1" value="0"><span id="rotateVal">0°</span>
+        </div>
+        <div class="row" style="margin-top:8px;">
+          <button id="btnDraw" class="btn">Draw mask</button>
+          <button id="btnFinish" class="btn">Finish</button>
+          <button id="btnClearMask" class="btn">Clear mask</button>
+        </div>
+        <div class="hint" style="margin-top:6px;">
+          Drag on canvas to move the layer. Toggle <span class="kbd">Draw mask</span> then tap to add points; <span class="kbd">Finish</span> to close.
+        </div>
+      </div>
+      <div class="row" style="justify-content: space-between; align-items: center;">
+        <div class="pill">Tip: pinch to zoom your browser if you need more precision.</div>
+      </div>
+    </aside>
+  </div>
+  <div id="toast"></div>
+
+<script>
+// --- Canvas & state ---
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1)); // cap DPR to keep perf okay
+
+const base = new Image();
+base.src = 'assets/body_base.jpg';
+
+const layers = []; // {img, x, y, scale, rot, opacity, mask: [{x,y},...]}  topmost = last
+let selected = null;
+
+let drawingMask = false;
+let isDragging = false;
+let dragOffset = {x:0, y:0};
+
+function setCanvasSize() {
+  const maxW = document.getElementById('stage').clientWidth - 20;
+  const targetW = Math.min(base.naturalWidth || 768, maxW > 0 ? maxW : (base.naturalWidth || 768));
+  const ratio = (base.naturalWidth||768) / (base.naturalHeight||1152);
+  const targetH = targetW / ratio;
+
+  canvas.style.width = targetW + 'px';
+  canvas.style.height = targetH + 'px';
+  canvas.width = Math.round(targetW * dpr);
+  canvas.height = Math.round(targetH * dpr);
+  draw();
+}
+
+base.onload = () => { setCanvasSize(); draw(); };
+window.addEventListener('resize', setCanvasSize);
+
+// --- Helpers ---
+function px(v){ return Math.round(v * dpr); }
+function toCanvasCoords(clientX, clientY) {
+  const rect = canvas.getBoundingClientRect();
+  return { x: (clientX - rect.left) * dpr, y: (clientY - rect.top) * dpr };
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 1600);
+}
+
+// --- Add layer ---
+document.getElementById('fileFabric').addEventListener('change', (e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  const img = new Image();
+  img.onload = () => {
+    // center new layer
+    const cx = canvas.width/2;
+    const cy = canvas.height/2;
+    const layer = { img, x: cx, y: cy, scale: 100, rot: 0, opacity: 1, mask: [] };
+    layers.push(layer);
+    selected = layer;
+    syncUI();
+    draw();
+    showToast('Fabric layer added ✨');
+  };
+  img.src = URL.createObjectURL(file);
+  e.target.value = '';
+});
+
+// --- Replace base ---
+document.getElementById('fileBase').addEventListener('change', (e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  const img = new Image();
+  img.onload = () => {
+    base.src = img.src;
+    setCanvasSize();
+    showToast('Base image updated');
+  };
+  img.src = URL.createObjectURL(file);
+  e.target.value='';
+});
+
+// --- UI bindings ---
+const opacityEl = document.getElementById('opacity');
+const scaleEl = document.getElementById('scale');
+const rotateEl = document.getElementById('rotate');
+function syncUI(){
+  if(!selected){ return; }
+  opacityEl.value = selected.opacity;
+  document.getElementById('opacityVal').textContent = Number(selected.opacity).toFixed(2);
+  scaleEl.value = selected.scale;
+  document.getElementById('scaleVal').textContent = Math.round(selected.scale) + '%';
+  rotateEl.value = selected.rot;
+  document.getElementById('rotateVal').textContent = Math.round(selected.rot) + '°';
+}
+opacityEl.addEventListener('input', ()=>{ if(selected){ selected.opacity = parseFloat(opacityEl.value); document.getElementById('opacityVal').textContent = Number(selected.opacity).toFixed(2); draw(); }});
+scaleEl.addEventListener('input', ()=>{ if(selected){ selected.scale = parseFloat(scaleEl.value); document.getElementById('scaleVal').textContent = Math.round(selected.scale) + '%'; draw(); }});
+rotateEl.addEventListener('input', ()=>{ if(selected){ selected.rot = parseFloat(rotateEl.value); document.getElementById('rotateVal').textContent = Math.round(selected.rot) + '°'; draw(); }});
+
+// --- Mask drawing ---
+document.getElementById('btnDraw').addEventListener('click', ()=>{
+  drawingMask = !drawingMask;
+  document.getElementById('btnDraw').classList.toggle('primary', drawingMask);
+  showToast(drawingMask ? 'Mask mode: tap to add points' : 'Mask mode off');
+});
+document.getElementById('btnFinish').addEventListener('click', ()=>{
+  if(selected && selected.mask.length >= 3){
+    drawingMask = false;
+    document.getElementById('btnDraw').classList.remove('primary');
+    draw();
+    showToast('Mask closed');
+  }
+});
+document.getElementById('btnClearMask').addEventListener('click', ()=>{
+  if(selected){ selected.mask = []; draw(); showToast('Mask cleared'); }
+});
+
+document.getElementById('btnClear').addEventListener('click', ()=>{
+  layers.length = 0; selected = null; draw();
+  showToast('All layers removed');
+});
+
+document.getElementById('btnExport').addEventListener('click', ()=>{
+  // export current canvas as PNG
+  const a = document.createElement('a');
+  a.download = 'jessie-fashion-sketch.png';
+  a.href = canvas.toDataURL('image/png');
+  a.click();
+});
+
+// --- Pointer interactions ---
+function hitTestLayer(layer, p) {
+  // inverse transform point into layer space and check if within image bounds
+  const rad = layer.rot * Math.PI/180;
+  const cos = Math.cos(-rad), sin = Math.sin(-rad);
+  const dx = p.x - layer.x, dy = p.y - layer.y;
+  const lx = (dx * cos - dy * sin) / (layer.scale/100);
+  const ly = (dx * sin + dy * cos) / (layer.scale/100);
+  const w = layer.img.naturalWidth * dpr;
+  const h = layer.img.naturalHeight * dpr;
+  return lx > -w/2 && lx < w/2 && ly > -h/2 && ly < h/2;
+}
+
+function onPointerDown(e){
+  const p = (e.touches && e.touches[0]) ? toCanvasCoords(e.touches[0].clientX, e.touches[0].clientY) : toCanvasCoords(e.clientX, e.clientY);
+  if(drawingMask && selected){
+    selected.mask.push(p);
+    draw();
+    return;
+  }
+  // select topmost under pointer
+  for(let i=layers.length-1;i>=0;i--){
+    if(hitTestLayer(layers[i], p)){
+      selected = layers[i];
+      isDragging = true;
+      dragOffset.x = p.x - selected.x;
+      dragOffset.y = p.y - selected.y;
+      syncUI();
+      draw();
+      return;
+    }
+  }
+  selected = null;
+  draw();
+}
+function onPointerMove(e){
+  if(!isDragging || !selected) return;
+  const p = (e.touches && e.touches[0]) ? toCanvasCoords(e.touches[0].clientX, e.touches[0].clientY) : toCanvasCoords(e.clientX, e.clientY);
+  selected.x = p.x - dragOffset.x;
+  selected.y = p.y - dragOffset.y;
+  draw();
+}
+function onPointerUp(){ isDragging=false; }
+canvas.addEventListener('mousedown', onPointerDown);
+canvas.addEventListener('mousemove', onPointerMove);
+window.addEventListener('mouseup', onPointerUp);
+canvas.addEventListener('touchstart', onPointerDown, {passive:false});
+canvas.addEventListener('touchmove', onPointerMove, {passive:false});
+window.addEventListener('touchend', onPointerUp);
+
+// --- Draw ---
+function draw(){
+  // clear
+  ctx.save();
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  // draw base centered & scaled to canvas
+  const bw = base.naturalWidth ? base.naturalWidth * dpr : canvas.width;
+  const bh = base.naturalHeight ? base.naturalHeight * dpr : canvas.height;
+  // fit base to canvas exactly
+  ctx.drawImage(base, 0, 0, bw, bh, 0, 0, canvas.width, canvas.height);
+
+  // draw each fabric layer
+  for(const layer of layers){
+    ctx.save();
+    ctx.globalAlpha = layer.opacity;
+    ctx.translate(layer.x, layer.y);
+    ctx.rotate(layer.rot * Math.PI/180);
+    const s = layer.scale/100;
+    ctx.scale(s, s);
+
+    // If mask exists, clip in canvas coordinates (mask points are already in canvas space)
+    if(layer.mask && layer.mask.length >= 3){
+      // We need to operate in canvas space: reset transform to identity, clip, then apply transform and draw
+      ctx.restore();
+      ctx.save();
+      ctx.globalAlpha = layer.opacity;
+      // Clip to mask
+      ctx.beginPath();
+      for(let i=0;i<layer.mask.length;i++){
+        const p = layer.mask[i];
+        if(i===0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
+      }
+      ctx.closePath();
+      ctx.clip();
+
+      // Now draw the transformed image
+      ctx.translate(layer.x, layer.y);
+      ctx.rotate(layer.rot * Math.PI/180);
+      ctx.scale(s, s);
+      const w = layer.img.naturalWidth * dpr;
+      const h = layer.img.naturalHeight * dpr;
+      ctx.drawImage(layer.img, -w/2, -h/2, w, h);
+    } else {
+      const w = layer.img.naturalWidth * dpr;
+      const h = layer.img.naturalHeight * dpr;
+      ctx.drawImage(layer.img, -w/2, -h/2, w, h);
+    }
+    ctx.restore();
+  }
+
+  // draw mask points if in drawing mode
+  if(drawingMask && selected){
+    ctx.save();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#8ef';
+    ctx.fillStyle = 'rgba(160,220,255,0.15)';
+    if(selected.mask.length>=1){
+      ctx.beginPath();
+      for(let i=0;i<selected.mask.length;i++){
+        const p = selected.mask[i];
+        if(i===0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
+      }
+      ctx.stroke();
+    }
+    for(const p of selected.mask){
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 4, 0, Math.PI*2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // selected outline
+  if(selected){
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([6,4]);
+    // compute four corners after transform for visual feedback
+    const w = selected.img.naturalWidth * dpr * (selected.scale/100);
+    const h = selected.img.naturalHeight * dpr * (selected.scale/100);
+    const rad = selected.rot * Math.PI/180;
+    const cx = selected.x, cy = selected.y;
+    function rot(x,y){ return {x: cx + x*Math.cos(rad)-y*Math.sin(rad), y: cy + x*Math.sin(rad)+y*Math.cos(rad)} }
+    const pts = [
+      rot(-w/2,-h/2), rot(w/2,-h/2), rot(w/2,h/2), rot(-w/2,h/2)
+    ];
+    ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y);
+    for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i].x, pts[i].y);
+    ctx.closePath(); ctx.stroke();
+    ctx.restore();
+  }
+
+  ctx.restore();
+}
+
+// Initialize if base loaded from cache
+if(base.complete) setCanvasSize();
+</script>
+</body>
+</html>
